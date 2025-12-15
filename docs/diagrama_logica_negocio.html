@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagrama Lógica de Negocio - Asistente Siembra</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .mermaid {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Flujo de Decisión: Lógica de Negocio</h1>
+    <div class="mermaid">
+        flowchart TD
+        Start[Inicio del Análisis] --> FetchAPI[Consulta API Open-Meteo]
+
+        subgraph DataSources [Fuentes de Datos]
+        direction TB
+        API_Hist[Histórico 7 Días]
+        API_Fore[Pronóstico 7 Días]
+        end
+
+        FetchAPI -.-> API_Hist
+        FetchAPI -.-> API_Fore
+
+        API_Hist --> CalcRain[Calcular Lluvia Acumulada]
+        API_Fore --> CheckForecast[Analizar Pronóstico Futuro]
+
+        CalcRain --> Check90{Lluvia >= 90mm?}
+
+        Check90 -- Sí --> ResBlue[resultado: VENTANA PERFECTA 🟦]
+        Check90 -- No --> Check70{Lluvia >= 70mm?}
+
+        Check70 -- Sí --> ResGreen[resultado: VENTANA ÓPTIMA 🟩]
+        Check70 -- No --> Check40{Lluvia >= 40mm?}
+
+        Check40 -- No --> ResRed[resultado: NO VIABLE 🔴]
+        Check40 -- Sí --> CheckForecast
+
+        CheckForecast -- Lluvia Prevista --> ResEmerald[resultado: VENTANA FAVORABLE 🟢]
+        CheckForecast -- Sin Lluvia --> ResYellow[resultado: VENTANA ARRIESGADA 🟡]
+
+        ResBlue --> Details[Generar Texto de Detalles]
+        ResGreen --> Details
+        ResEmerald --> Details
+        ResYellow --> Details
+        ResRed --> Details
+
+        Details --> Render[Renderizar Panel]
+
+        style DataSources fill:#f0f8ff,stroke:#5d8aa8,stroke-dasharray: 5 5
+        style FetchAPI fill:#fff3cd,stroke:#ffc107
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</body>
+
+</html>

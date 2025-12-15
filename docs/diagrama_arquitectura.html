@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagrama de Arquitectura - Asistente Siembra</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .mermaid {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Arquitectura Lógica de Componentes</h1>
+    <div class="mermaid">
+        graph TD
+        App[Contenedor Principal App] --> Header
+        App --> LiveDashboard[Módulo de Panel en Tiempo Real]
+        App --> SoilCard[Información del Perfil del Suelo]
+        App --> History[Calendario Histórico]
+
+        LiveDashboard --> ForecastDay[Tarjeta de Pronóstico Diario]
+        LiveDashboard --> Loading[Indicador de Carga]
+
+        History --> CalendarCell[Celda de Mes del Calendario]
+
+        subgraph CapaLogica
+        Fetcher[Obtención de Datos]
+        Processor[Procesador de Lógica]
+        Advisor[Motor de Recomendación]
+        end
+
+        LiveDashboard -.-> CapaLogica
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</body>
+
+</html>
