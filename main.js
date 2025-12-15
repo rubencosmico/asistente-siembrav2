@@ -1,22 +1,5 @@
 // main.js
-
-// --- Configuración y Constantes ---
-const CONFIG = {
-    LATITUDE: 38.27,
-    LONGITUDE: -0.70,
-    TIMEZONE: "Europe/Madrid"
-};
-
-const THRESHOLDS = {
-    PERFECT: 90.0,
-    OPTIMAL: 70.0,
-    MINIMUM: 40.0
-};
-
-const FORECAST_CRITERIA = {
-    MIN_RAIN_MM: 1.0,
-    MIN_PROBABILITY_PERCENT: 30
-};
+import ConfigManager from './config.js';
 
 // --- Datos Históricos ---
 const historicalData = [
@@ -90,18 +73,34 @@ function createForecastDay(day, rain, prob) {
 /**
  * Lógica principal del Dashboard en tiempo real
  */
-async function initLiveDashboard() {
+export async function initLiveDashboard() {
     const container = document.getElementById('live-dashboard');
     if (!container) return;
 
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${CONFIG.LATITUDE}&longitude=${CONFIG.LONGITUDE}&past_days=7&hourly=precipitation&daily=precipitation_sum,precipitation_probability_mean&timezone=${CONFIG.TIMEZONE}`;
+    // Mostrar spinner de carga al reiniciar
+    container.innerHTML = `
+            <div class="flex flex-col items-center justify-center p-8 text-gray-500">
+                <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="mt-4 text-lg font-semibold">Consultando datos meteorológicos...</p>
+            </div>`;
+
+    const config = ConfigManager.get();
+    const forecastDaysCount = config.FORECAST_CRITERIA.FORECAST_DAYS || 7;
+
+    // Open-Meteo necesita los días totales (pasados + futuros)
+    // Pero la API tiene parámetros separados: 'past_days' y 'forecast_days'.
+    // Default forecast_days is 7. We should override it.
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${config.LATITUDE}&longitude=${config.LONGITUDE}&past_days=7&forecast_days=${forecastDaysCount}&hourly=precipitation&daily=precipitation_sum,precipitation_probability_mean&timezone=${config.TIMEZONE}`;
 
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
         const data = await response.json();
 
-        processAndRecommend(data, container);
+        processAndRecommend(data, container, config);
 
     } catch (e) {
         console.error(e);
@@ -109,26 +108,29 @@ async function initLiveDashboard() {
     }
 }
 
-function processAndRecommend(data, container) {
+function processAndRecommend(data, container, config) {
+    const { THRESHOLDS, FORECAST_CRITERIA } = config;
+    const forecastDaysCount = FORECAST_CRITERIA.FORECAST_DAYS || 7;
+    const minFollowUpRain = FORECAST_CRITERIA.MIN_FOLLOW_UP_RAIN || 5.0;
+
     // 1. Calcular Lluvia Acumulada (Últimos 7 Días)
     const past7DaysRain = data.daily.precipitation_sum.slice(0, 7);
     const sevenDayTotal = past7DaysRain.reduce((sum, rain) => sum + (rain || 0), 0);
 
-    // 2. Analizar Pronóstico (Próximos 7 Días)
-    const forecastDays = data.daily.time.slice(7, 14);
-    const forecastRain = data.daily.precipitation_sum.slice(7, 14);
-    const forecastProb = data.daily.precipitation_probability_mean.slice(7, 14);
+    // 2. Analizar Pronóstico
+    // Los indices 0-6 son pasados (si past_days=7). El índice 7 es hoy/mañana (primer día forecast).
+    const forecastStartIndex = 7;
+    const forecastEndIndex = forecastStartIndex + forecastDaysCount;
 
-    let nextRainDayIndex = -1;
-    for (let i = 0; i < forecastRain.length; i++) {
-        if (forecastRain[i] > FORECAST_CRITERIA.MIN_RAIN_MM && forecastProb[i] > FORECAST_CRITERIA.MIN_PROBABILITY_PERCENT) {
-            nextRainDayIndex = i;
-            break;
-        }
-    }
-    const daysToNextRain = nextRainDayIndex !== -1 ? nextRainDayIndex + 1 : 99;
+    const forecastDays = data.daily.time.slice(forecastStartIndex, forecastEndIndex);
+    const forecastRain = data.daily.precipitation_sum.slice(forecastStartIndex, forecastEndIndex);
+    const forecastProb = data.daily.precipitation_probability_mean.slice(forecastStartIndex, forecastEndIndex);
 
-    // 3. Motor de Reglas
+    // Calc Total Forecast Rain (Follow-up Rain)
+    const totalForecastRain = forecastRain.reduce((sum, val) => sum + (val || 0), 0);
+    const hasFollowUpRain = totalForecastRain >= minFollowUpRain;
+
+    // 3. Motor de Reglas (Actualizado)
     let rec = {
         level: "🔴",
         title: "No Viable",
@@ -140,26 +142,26 @@ function processAndRecommend(data, container) {
 
     if (sevenDayTotal >= THRESHOLDS.PERFECT) {
         rec = { level: "🟦", title: "Ventana Perfecta", bgColor: "bg-blue-100", textColor: "text-blue-800", borderColor: "border-blue-500" };
-        rec.details = `Evento de ${sevenDayTotal.toFixed(1)}mm. Saturación profunda del suelo. Ideal para siembra.`;
-        if (daysToNextRain > 7) rec.details += " PRECAUCIÓN: No hay lluvias de seguimiento previstas.";
+        rec.details = `Evento de ${sevenDayTotal.toFixed(1)}mm. Saturación profunda.`;
+        if (!hasFollowUpRain) rec.details += ` PRECAUCIÓN: Lluvia de seguimiento escasa (${totalForecastRain.toFixed(1)}mm en ${forecastDaysCount}d).`;
 
     } else if (sevenDayTotal >= THRESHOLDS.OPTIMAL) {
         rec = { level: "🟩", title: "Ventana Óptima", bgColor: "bg-green-100", textColor: "text-green-800", borderColor: "border-green-500" };
-        rec.details = `Evento de ${sevenDayTotal.toFixed(1)}mm. Humedad suficiente para alcanzar capas profundas.`;
-        if (daysToNextRain > 10) rec.details += " RIESGO: Lluvias de seguimiento lejanas.";
+        rec.details = `Evento de ${sevenDayTotal.toFixed(1)}mm. Humedad favorable.`;
+        if (!hasFollowUpRain) rec.details += ` RIESGO: Lluvia de seguimiento baja (${totalForecastRain.toFixed(1)}mm en ${forecastDaysCount}d).`;
 
     } else if (sevenDayTotal >= THRESHOLDS.MINIMUM) {
         rec = { level: "🟢", title: "Ventana Favorable", bgColor: "bg-emerald-100", textColor: "text-emerald-800", borderColor: "border-emerald-500" };
-        rec.details = `Evento de ${sevenDayTotal.toFixed(1)}mm. Humedad superficial conseguida.`;
+        rec.details = `Evento de ${sevenDayTotal.toFixed(1)}mm. Humedad superficial.`;
 
-        if (daysToNextRain <= 5) {
-            rec.details += ` Se esperan lluvias en ${daysToNextRain} día(s).`;
+        if (hasFollowUpRain) {
+            rec.details += ` Lluvia de seguimiento positiva (${totalForecastRain.toFixed(1)}mm en próximos ${forecastDaysCount} días).`;
         } else {
             rec = { level: "🟡", title: "Ventana Arriesgada", bgColor: "bg-yellow-100", textColor: "text-yellow-800", borderColor: "border-yellow-500" };
-            rec.details = `Evento de ${sevenDayTotal.toFixed(1)}mm, pero no hay lluvias de seguimiento cercanas. Alto riesgo de desecación.`
+            rec.details = `Evento de ${sevenDayTotal.toFixed(1)}mm, pero lluvia de seguimiento insuficiente (${totalForecastRain.toFixed(1)}mm < ${minFollowUpRain}mm). Alto riesgo de desecación.`
         }
     } else {
-        rec.details = `Lluvia acumulada (${sevenDayTotal.toFixed(1)}mm) insuficiente. Esperando evento de lluvia significativo.`;
+        rec.details = `Lluvia acumulada (${sevenDayTotal.toFixed(1)}mm) insuficiente. Esperando evento de lluvia significativo (>${THRESHOLDS.MINIMUM}mm).`;
     }
 
     // Renderizar
@@ -169,7 +171,7 @@ function processAndRecommend(data, container) {
             day: new Date(time).toLocaleDateString('es-ES', { weekday: 'short' }),
             rain: forecastRain[i],
             prob: forecastProb[i],
-        })).slice(0, 5)
+        })).slice(0, 5) // Mostramos solo 5 en la tarjeta pequeña por espacio
     };
 
     const brainIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" class="mr-3 text-purple-600" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.993.341" /><path d="M18 8a4 4 0 0 0-8 0" /><path d="M12 13a3 3 0 1 0 .284 5.99" /><path d="M19 13a1 1 0 1 0 2 0" /><path d="M6 13a1 1 0 1 0 2 0" /><path d="M12 21a1 1 0 1 0 0-2" /><path d="M4.03 11.2a1 1 0 0 0-1.933.514" /><path d="M21.9 11.2a1 1 0 0 1-1.933.514" /><path d="M12 5V2" /><path d="M12 12v-2" /><path d="m6.5 12.5-1-1" /><path d="M17.5 12.5 19 14" /><path d="m6.5 14.5-1.34-1.34" /><path d="M18.84 15.84 17.5 14.5" /><path d="m4.5 18.5 1.5-1.5" /><path d="M18 18.5h-2" /><path d="M12 21v-2" /></svg>`;
@@ -189,6 +191,9 @@ function processAndRecommend(data, container) {
                     <p class="font-bold text-lg mb-2 ${rec.textColor}">Recomendación Actual:</p>
                     <p class="text-4xl font-black ${rec.textColor} mb-3">${rec.level} ${rec.title}</p>
                     <p class="text-sm ${rec.textColor}">${rec.details}</p>
+                    <p class="text-xs text-gray-500 mt-4 pt-4 border-t border-gray-300">
+                        Ubicación: ${config.LATITUDE.toFixed(2)}, ${config.LONGITUDE.toFixed(2)}
+                    </p>
                 </div>
 
                 <!-- Datos Numéricos -->
@@ -215,4 +220,9 @@ function processAndRecommend(data, container) {
 document.addEventListener('DOMContentLoaded', () => {
     initLiveDashboard();
     renderHistoricalTable();
+
+    // Escuchar cambios de configuración para recargar el dashboard
+    window.addEventListener('configChanged', () => {
+        initLiveDashboard();
+    });
 });

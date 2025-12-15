@@ -6,33 +6,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Asistente de Siembra Inteligente para proyectos de reforestación">
     <title>Asistente de Siembra</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link href="./style.css" rel="stylesheet">
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans p-4 sm:p-6 lg:p-8">
     <div class="max-w-7xl mx-auto">
         <!-- Header -->
-        <header class="mb-8 p-6 bg-white rounded-xl shadow-md border border-gray-200">
-            <h1 class="text-3xl sm:text-4xl font-bold text-green-800 mb-2 flex items-center">
-                <!-- Sun Icon -->
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
-                    class="mr-3 text-yellow-500" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="4" />
-                    <path d="M12 2v2" />
-                    <path d="M12 20v2" />
-                    <path d="m4.93 4.93 1.41 1.41" />
-                    <path d="m17.66 17.66 1.41 1.41" />
-                    <path d="M2 12h2" />
-                    <path d="M20 12h2" />
-                    <path d="m6.34 17.66-1.41 1.41" />
-                    <path d="m19.07 4.93-1.41 1.41" />
+        <header class="mb-8 p-6 bg-white rounded-xl shadow-md border border-gray-200 flex justify-between items-start">
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-bold text-green-800 mb-2 flex items-center">
+                    <!-- Sun Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                        class="mr-3 text-yellow-500" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2" />
+                        <path d="M12 20v2" />
+                        <path d="m4.93 4.93 1.41 1.41" />
+                        <path d="m17.66 17.66 1.41 1.41" />
+                        <path d="M2 12h2" />
+                        <path d="M20 12h2" />
+                        <path d="m6.34 17.66-1.41 1.41" />
+                        <path d="m19.07 4.93-1.41 1.41" />
+                    </svg>
+                    Asistente de Siembra Inteligente
+                </h1>
+                <p class="text-gray-600">
+                    Análisis de viabilidad para proyectos de reforestación en climas semiáridos.
+                </p>
+            </div>
+            <button id="btn-open-settings"
+                class="text-gray-500 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                title="Configuración">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="lucide lucide-settings">
+                    <path
+                        d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
                 </svg>
-                Asistente de Siembra Inteligente
-            </h1>
-            <p class="text-gray-600">
-                Análisis de viabilidad para proyectos de reforestación en climas semiáridos.
-            </p>
+            </button>
         </header>
 
         <!-- Live Dashboard Container -->
@@ -155,7 +174,98 @@
             </div>
         </main>
     </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal"
+        class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50 overflow-y-auto">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl m-4 p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-bold text-gray-800">Configuración</h3>
+                <button id="btn-close-settings" class="text-gray-500 hover:text-gray-700">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Location Section -->
+                <div class="border-b pb-6">
+                    <h4 class="font-bold text-lg mb-3 text-gray-700">Ubicación</h4>
+                    <p class="text-sm text-gray-500 mb-2">Selecciona en el mapa o introduce coordenadas.</p>
+                    <div id="map" class="h-64 rounded-lg bg-gray-100 border border-gray-300 mb-4 z-0"></div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Latitud</label>
+                            <input type="number" id="input-lat"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border"
+                                step="0.01">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Longitud</label>
+                            <input type="number" id="input-lng"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border"
+                                step="0.01">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Thresholds Section -->
+                <div class="border-b pb-6">
+                    <h4 class="font-bold text-lg mb-3 text-gray-700">Umbrales de Lluvia (7 días previos)</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Mínimo (mm)</label>
+                            <input type="number" id="input-min-rain"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Óptimo (mm)</label>
+                            <input type="number" id="input-opt-rain"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Perfecto (mm)</label>
+                            <input type="number" id="input-perf-rain"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Forecast Criteria Section -->
+                <div class="border-b pb-6">
+                    <h4 class="font-bold text-lg mb-3 text-gray-700">Criterios de Pronóstico (Seguimiento)</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Días a visualizar/analizar</label>
+                            <input type="number" id="input-forecast-days"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border"
+                                min="1" max="14">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Lluvia acumulada necesaria
+                                (mm)</label>
+                            <input type="number" id="input-followup-rain"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-6 space-x-3">
+                <button id="btn-cancel-settings"
+                    class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors">Cancelar</button>
+                <button id="btn-save-settings"
+                    class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm">Guardar
+                    Cambios</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="./main.js"></script>
+    <script type="module" src="./settings.js"></script>
 </body>
 
 </html>

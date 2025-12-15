@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tailwindcss -i ./src/input.css -o ./style.css --watch",
-    "build": "tailwindcss -i ./src/input.css -o ./style.css --minify"
+    "build": "mkdir -p dist && cp index.html main.js config.js settings.js dist/ && tailwindcss -i ./src/input.css -o ./dist/style.css --minify"
   },
   "devDependencies": {
     "tailwindcss": "3.0.24"
