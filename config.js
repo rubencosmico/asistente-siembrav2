@@ -14,7 +14,9 @@ const DEFAULT_CONFIG = {
         MIN_PROBABILITY_PERCENT: 30,
         FORECAST_DAYS: 7, // Días a mirar en el futuro
         MIN_FOLLOW_UP_RAIN: 5.0 // Lluvia acumulada necesaria para considerar "seguimiento"
-    }
+    },
+    STATIONS: [], // Lista de estaciones guardadas
+    SELECTED_STATION_ID: null // ID de la estación seleccionada (null = usar coordenadas manuales)
 };
 
 const ConfigManager = {
@@ -33,7 +35,9 @@ const ConfigManager = {
                     ...DEFAULT_CONFIG,
                     ...parsed,
                     THRESHOLDS: { ...DEFAULT_CONFIG.THRESHOLDS, ...parsed.THRESHOLDS },
-                    FORECAST_CRITERIA: { ...DEFAULT_CONFIG.FORECAST_CRITERIA, ...parsed.FORECAST_CRITERIA }
+                    FORECAST_CRITERIA: { ...DEFAULT_CONFIG.FORECAST_CRITERIA, ...parsed.FORECAST_CRITERIA },
+                    STATIONS: parsed.STATIONS || DEFAULT_CONFIG.STATIONS,
+                    SELECTED_STATION_ID: parsed.SELECTED_STATION_ID !== undefined ? parsed.SELECTED_STATION_ID : DEFAULT_CONFIG.SELECTED_STATION_ID
                 };
             } catch (e) {
                 console.error("Error al cargar configuración:", e);
@@ -54,12 +58,15 @@ const ConfigManager = {
             ...current,
             ...newConfig,
             THRESHOLDS: { ...current.THRESHOLDS, ...(newConfig.THRESHOLDS || {}) },
-            FORECAST_CRITERIA: { ...current.FORECAST_CRITERIA, ...(newConfig.FORECAST_CRITERIA || {}) }
-        };
-        localStorage.setItem('appConfig', JSON.stringify(updated));
-        // Disparamos un evento custom para que la app sepa que ha cambiado
-        window.dispatchEvent(new Event('configChanged'));
-    }
+            ...current.FORECAST_CRITERIA, ...(newConfig.FORECAST_CRITERIA || {})
+        },
+            STATIONS: newConfig.STATIONS || current.STATIONS,
+                SELECTED_STATION_ID: newConfig.SELECTED_STATION_ID !== undefined ? newConfig.SELECTED_STATION_ID : current.SELECTED_STATION_ID
+    };
+    localStorage.setItem('appConfig', JSON.stringify(updated));
+    // Disparamos un evento custom para que la app sepa que ha cambiado
+    window.dispatchEvent(new Event('configChanged'));
+}
 };
 
 export default ConfigManager;

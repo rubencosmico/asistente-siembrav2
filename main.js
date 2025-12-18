@@ -71,13 +71,95 @@ function createForecastDay(day, rain, prob) {
 }
 
 /**
+ * Helper: Formatea fecha YYYY-MM-DD
+ */
+function formatDate(date) {
+    return date.toISOString().split('T')[0];
+}
+
+/**
+ * Fetch Rainfall from Custom Station
+ */
+async function fetchStationHistory(station, pastDays = 7) {
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - pastDays);
+
+    let url = station.url
+        .replace('{startDate}', formatDate(startDate))
+        .replace('{endDate}', formatDate(endDate));
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Station HTTP: ${response.status}`);
+
+        const text = await response.text();
+        let totalRain = 0;
+
+        if (station.format === 'csv') {
+            const rows = text.trim().split('\n');
+            // Asumimos primera fila headers si no está vacío
+            // Simple CSV parser: busca indice de columna
+            const headers = rows[0].split(/[;,]/).map(h => h.trim().replace(/['"]/g, ''));
+            const colName = station.mapping || 'precipitations'; // fallback
+            const colIndex = headers.indexOf(colName);
+
+            if (colIndex === -1) {
+                console.warn(`Columna ${colName} no encontrada en CSV de estación.`);
+                // Intentar heurística: buscar algo con "rain", "precip", "mm"
+                // O simplemente sumar la ultima columna? No, muy arriesgado.
+                return 0; // Fallback safe
+            }
+
+            // Sumar filas de datos
+            for (let i = 1; i < rows.length; i++) {
+                const cols = rows[i].split(/[;,]/);
+                if (cols.length > colIndex) {
+                    const val = parseFloat(cols[colIndex]);
+                    if (!isNaN(val)) totalRain += val;
+                }
+            }
+        } else {
+            // JSON Parsing
+            const json = JSON.parse(text);
+            const path = station.mapping || 'daily.rain';
+            const keys = path.split('.');
+
+            // Navegar el objeto
+            let current = json;
+            for (const key of keys) {
+                if (current && current[key] !== undefined) {
+                    current = current[key];
+                } else {
+                    current = null;
+                    break;
+                }
+            }
+
+            // Si current es array, sumamos. Si es numero, es el total?
+            if (Array.isArray(current)) {
+                totalRain = current.reduce((sum, val) => sum + (Number(val) || 0), 0);
+            } else if (typeof current === 'number') {
+                totalRain = current;
+            }
+        }
+
+        return totalRain;
+
+    } catch (e) {
+        console.error("Error fetching station data:", e);
+        return null; // Null indicates failure, fallback logic might apply? or just show error.
+    }
+}
+
+/**
  * Lógica principal del Dashboard en tiempo real
  */
 export async function initLiveDashboard() {
     const container = document.getElementById('live-dashboard');
     if (!container) return;
 
-    // Mostrar spinner de carga al reiniciar
+    // Mostrar spinner de carga
     container.innerHTML = `
             <div class="flex flex-col items-center justify-center p-8 text-gray-500">
                 <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -90,47 +172,70 @@ export async function initLiveDashboard() {
     const config = ConfigManager.get();
     const forecastDaysCount = config.FORECAST_CRITERIA.FORECAST_DAYS || 7;
 
-    // Open-Meteo necesita los días totales (pasados + futuros)
-    // Pero la API tiene parámetros separados: 'past_days' y 'forecast_days'.
-    // Default forecast_days is 7. We should override it.
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${config.LATITUDE}&longitude=${config.LONGITUDE}&past_days=7&forecast_days=${forecastDaysCount}&hourly=precipitation&daily=precipitation_sum,precipitation_probability_mean&timezone=${config.TIMEZONE}`;
+    // 1. Fetch Forecast (Always Open-Meteo for future)
+    // Usamos las coordenadas configuradas (que pueden ser las de la estación o manuales)
+    const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${config.LATITUDE}&longitude=${config.LONGITUDE}&forecast_days=${forecastDaysCount}&daily=precipitation_sum,precipitation_probability_mean&timezone=${config.TIMEZONE}`;
+
+    // 2. Fetch Historical (Hybrid)
+    // Si no hay estación seleccionada, pedimos historical a Open-Meteo también
+    let historicalRain = 0;
+    let usingStation = false;
+    let stationName = "Open-Meteo (Histórico)";
 
     try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-        const data = await response.json();
+        const [forecastResponse, historicalResponse] = await Promise.all([
+            fetch(forecastUrl).then(r => r.json()),
+            (async () => {
+                if (config.SELECTED_STATION_ID) {
+                    const station = config.STATIONS.find(s => s.id === config.SELECTED_STATION_ID);
+                    if (station) {
+                        usingStation = true;
+                        stationName = station.name;
+                        const rain = await fetchStationHistory(station, 7);
+                        if (rain !== null) return { type: 'station', sum: rain };
+                        // Si falla estación, ¿fallback a Open-Meteo?
+                        console.warn("Estación falló, usando Open-Meteo fallback.");
+                    }
+                }
+                // Fallback or default map mode
+                const histUrl = `https://api.open-meteo.com/v1/forecast?latitude=${config.LATITUDE}&longitude=${config.LONGITUDE}&past_days=7&forecast_days=0&daily=precipitation_sum&timezone=${config.TIMEZONE}`;
+                return fetch(histUrl).then(r => r.json()).then(data => ({
+                    type: 'api',
+                    sum: data.daily.precipitation_sum.reduce((a, b) => a + (b || 0), 0)
+                }));
+            })()
+        ]);
 
-        processAndRecommend(data, container, config);
+        if (historicalResponse.type === 'station') {
+            historicalRain = historicalResponse.sum;
+        } else {
+            // Open-Meteo response structure
+            historicalRain = historicalResponse.sum;
+            stationName = "Open-Meteo (Estimado)";
+        }
+
+        processAndRecommend(forecastResponse, historicalRain, stationName, container, config);
 
     } catch (e) {
         console.error(e);
-        container.innerHTML = `<div class="text-center p-8 bg-red-100 text-red-700 rounded-lg">No se pudo cargar la información meteorológica. Por favor, intente de nuevo más tarde.</div>`;
+        container.innerHTML = `<div class="text-center p-8 bg-red-100 text-red-700 rounded-lg">Error al cargar datos. Verifique su conexión o la configuración de la estación. <br><span class="text-sm text-gray-600">${e.message}</span></div>`;
     }
 }
 
-function processAndRecommend(data, container, config) {
+function processAndRecommend(forecastData, sevenDayTotal, sourceName, container, config) {
     const { THRESHOLDS, FORECAST_CRITERIA } = config;
     const forecastDaysCount = FORECAST_CRITERIA.FORECAST_DAYS || 7;
     const minFollowUpRain = FORECAST_CRITERIA.MIN_FOLLOW_UP_RAIN || 5.0;
 
-    // 1. Calcular Lluvia Acumulada (Últimos 7 Días)
-    const past7DaysRain = data.daily.precipitation_sum.slice(0, 7);
-    const sevenDayTotal = past7DaysRain.reduce((sum, rain) => sum + (rain || 0), 0);
+    // Analizar Pronóstico
+    const forecastRain = forecastData.daily.precipitation_sum;
+    const forecastProb = forecastData.daily.precipitation_probability_mean;
+    const forecastTimes = forecastData.daily.time;
 
-    // 2. Analizar Pronóstico
-    // Los indices 0-6 son pasados (si past_days=7). El índice 7 es hoy/mañana (primer día forecast).
-    const forecastStartIndex = 7;
-    const forecastEndIndex = forecastStartIndex + forecastDaysCount;
-
-    const forecastDays = data.daily.time.slice(forecastStartIndex, forecastEndIndex);
-    const forecastRain = data.daily.precipitation_sum.slice(forecastStartIndex, forecastEndIndex);
-    const forecastProb = data.daily.precipitation_probability_mean.slice(forecastStartIndex, forecastEndIndex);
-
-    // Calc Total Forecast Rain (Follow-up Rain)
     const totalForecastRain = forecastRain.reduce((sum, val) => sum + (val || 0), 0);
     const hasFollowUpRain = totalForecastRain >= minFollowUpRain;
 
-    // 3. Motor de Reglas (Actualizado)
+    // Motor de Reglas
     let rec = {
         level: "🔴",
         title: "No Viable",
@@ -167,11 +272,11 @@ function processAndRecommend(data, container, config) {
     // Renderizar
     const weatherData = {
         sevenDayTotal,
-        forecast: forecastDays.map((time, i) => ({
+        forecast: forecastTimes.map((time, i) => ({
             day: new Date(time).toLocaleDateString('es-ES', { weekday: 'short' }),
             rain: forecastRain[i],
             prob: forecastProb[i],
-        })).slice(0, 5) // Mostramos solo 5 en la tarjeta pequeña por espacio
+        })).slice(0, 5)
     };
 
     const brainIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" class="mr-3 text-purple-600" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.993.341" /><path d="M18 8a4 4 0 0 0-8 0" /><path d="M12 13a3 3 0 1 0 .284 5.99" /><path d="M19 13a1 1 0 1 0 2 0" /><path d="M6 13a1 1 0 1 0 2 0" /><path d="M12 21a1 1 0 1 0 0-2" /><path d="M4.03 11.2a1 1 0 0 0-1.933.514" /><path d="M21.9 11.2a1 1 0 0 1-1.933.514" /><path d="M12 5V2" /><path d="M12 12v-2" /><path d="m6.5 12.5-1-1" /><path d="M17.5 12.5 19 14" /><path d="m6.5 14.5-1.34-1.34" /><path d="M18.84 15.84 17.5 14.5" /><path d="m4.5 18.5 1.5-1.5" /><path d="M18 18.5h-2" /><path d="M12 21v-2" /></svg>`;
@@ -192,6 +297,7 @@ function processAndRecommend(data, container, config) {
                     <p class="text-4xl font-black ${rec.textColor} mb-3">${rec.level} ${rec.title}</p>
                     <p class="text-sm ${rec.textColor}">${rec.details}</p>
                     <p class="text-xs text-gray-500 mt-4 pt-4 border-t border-gray-300">
+                        Fuente de Datos: <strong>${sourceName}</strong><br>
                         Ubicación: ${config.LATITUDE.toFixed(2)}, ${config.LONGITUDE.toFixed(2)}
                     </p>
                 </div>
