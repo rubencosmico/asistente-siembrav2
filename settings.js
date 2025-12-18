@@ -22,10 +22,16 @@ const radioSourceMap = document.querySelector('input[name="source-type"][value="
 const radioSourceStation = document.querySelector('input[name="source-type"][value="station"]');
 const stationsContainer = document.getElementById('stations-container');
 const selectStation = document.getElementById('select-station');
+
+// Toolbar buttons
 const btnAddStation = document.getElementById('btn-add-station');
+const btnEditStation = document.getElementById('btn-edit-station');
+const btnDeleteStation = document.getElementById('btn-delete-station');
+
 const stationForm = document.getElementById('station-form');
 const btnCloseStationForm = document.getElementById('btn-close-station-form');
 const btnSaveStation = document.getElementById('btn-save-station');
+const formTitle = document.getElementById('form-title');
 
 // Campos del formulario de estación
 const stationName = document.getElementById('station-name');
@@ -49,24 +55,12 @@ let editingStationId = null; // null si estamos creando, ID si editamos
  */
 function initMap(lat, lng) {
     if (map) return; // Ya inicializado
-
-    // Esperar a que el modal sea visible para que Leaflet calcule bien el tamaño
     setTimeout(() => {
         map = L.map('map').setView([lat, lng], 9);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
         marker = L.marker([lat, lng], { draggable: true }).addTo(map);
-
-        // Click en el mapa mueve el marcador
-        map.on('click', function (e) {
-            updateMarker(e.latlng.lat, e.latlng.lng);
-        });
-
-        // Arrastrar marcador actualiza inputs
-        marker.on('dragend', function (e) {
+        map.on('click', e => updateMarker(e.latlng.lat, e.latlng.lng));
+        marker.on('dragend', () => {
             const { lat, lng } = marker.getLatLng();
             updateInputs(lat, lng);
         });
@@ -74,9 +68,7 @@ function initMap(lat, lng) {
 }
 
 function updateMarker(lat, lng) {
-    if (marker) {
-        marker.setLatLng([lat, lng]);
-    }
+    if (marker) marker.setLatLng([lat, lng]);
     updateInputs(lat, lng);
 }
 
@@ -85,21 +77,14 @@ function updateInputs(lat, lng) {
     inputLng.value = parseFloat(lng).toFixed(4);
 }
 
-/**
- * Gestiona la visibilidad de opciones según el origen seleccionado
- */
 function toggleSourceOptions() {
     if (radioSourceStation.checked) {
         stationsContainer.classList.remove('hidden');
-        // Deshabilitar inputs manuales si se quisiera, pero mejor dejarlos visibles
     } else {
         stationsContainer.classList.add('hidden');
     }
 }
 
-/**
- * Renderiza la lista de estaciones en el select
- */
 function renderStationOptions(selectedId) {
     selectStation.innerHTML = '<option value="">-- Seleccionar --</option>';
     currentStations.forEach(st => {
@@ -109,16 +94,51 @@ function renderStationOptions(selectedId) {
         if (st.id === selectedId) option.selected = true;
         selectStation.appendChild(option);
     });
+    updateToolbarState();
 }
 
 /**
- * Abre el formulario para añadir/editar estación
+ * Actualiza el estado de los botones de la barra de herramientas según selección
  */
+function updateToolbarState() {
+    const hasSelection = selectStation.value !== "";
+    btnEditStation.disabled = !hasSelection;
+    btnDeleteStation.disabled = !hasSelection;
+}
+
+/**
+ * Lógica para Borrar Estación
+ */
+function deleteSelectedStation() {
+    const id = selectStation.value;
+    if (!id) return;
+
+    if (confirm("¿Seguro que quieres borrar esta estación?")) {
+        currentStations = currentStations.filter(s => s.id !== id);
+        renderStationOptions(""); // Limpiar selección
+    }
+}
+
+/**
+ * Lógica para Editar Estación (pre-rellenar formulario)
+ */
+function editSelectedStation() {
+    const id = selectStation.value;
+    if (!id) return;
+
+    const station = currentStations.find(s => s.id === id);
+    if (station) {
+        openStationForm(station);
+    }
+}
+
 function openStationForm(station = null) {
     stationForm.classList.remove('hidden');
-    btnAddStation.classList.add('hidden'); // Ocultar botón de añadir mientras editamos
+    // Deshabilitar la barra de herramientas mientras editamos para evitar conflictos
+    btnAddStation.classList.add('hidden');
 
     if (station) {
+        formTitle.textContent = "Editar Estación";
         editingStationId = station.id;
         stationName.value = station.name;
         stationLat.value = station.lat;
@@ -128,28 +148,27 @@ function openStationForm(station = null) {
         if (station.format === 'json') {
             stationFormatJson.checked = true;
             stationJsonPath.value = station.mapping || '';
-            toggleFormatOptions();
         } else {
             stationFormatCsv.checked = true;
             stationCsvCol.value = station.mapping || '';
-            toggleFormatOptions();
         }
     } else {
+        formTitle.textContent = "Nueva Estación";
         editingStationId = null;
         stationName.value = '';
-        stationLat.value = inputLat.value; // Por defecto coger la del mapa principal
+        stationLat.value = inputLat.value;
         stationLng.value = inputLng.value;
         stationUrl.value = '';
         stationFormatCsv.checked = true;
-        stationCsvCol.value = 'precipitations'; // Default sensato
+        stationCsvCol.value = 'precipitations';
         stationJsonPath.value = '';
-        toggleFormatOptions();
     }
+    toggleFormatOptions();
 }
 
 function closeStationForm() {
     stationForm.classList.add('hidden');
-    btnAddStation.classList.remove('hidden');
+    btnAddStation.classList.remove('hidden'); // Restaurar botón
     editingStationId = null;
 }
 
@@ -171,7 +190,7 @@ function saveStationLocal() {
     }
 
     const newStation = {
-        id: editingStationId || crypto.randomUUID(), // Generar ID si es nueva
+        id: editingStationId || crypto.randomUUID(),
         name: name,
         lat: parseFloat(stationLat.value),
         lng: parseFloat(stationLng.value),
@@ -181,28 +200,18 @@ function saveStationLocal() {
     };
 
     if (editingStationId) {
-        // Actualizar existente
         const index = currentStations.findIndex(s => s.id === editingStationId);
         if (index !== -1) currentStations[index] = newStation;
     } else {
-        // Añadir nueva
         currentStations.push(newStation);
     }
 
-    // Actualizar select y seleccionar la recién creada/editada
     renderStationOptions(newStation.id);
-    selectStation.value = newStation.id;
-
     closeStationForm();
 }
 
-/**
- * Abre el modal y carga datos actuales
- */
 function openSettings() {
     const config = ConfigManager.get();
-
-    // Cargar valores generales
     inputLat.value = config.LATITUDE;
     inputLng.value = config.LONGITUDE;
     inputMinRain.value = config.THRESHOLDS.MINIMUM;
@@ -211,10 +220,8 @@ function openSettings() {
     inputForecastDays.value = config.FORECAST_CRITERIA.FORECAST_DAYS || 7;
     inputFollowupRain.value = config.FORECAST_CRITERIA.MIN_FOLLOW_UP_RAIN || 5.0;
 
-    // Cargar estaciones
     currentStations = [...(config.STATIONS || [])];
 
-    // Configurar selección de origen
     if (config.SELECTED_STATION_ID) {
         radioSourceStation.checked = true;
     } else {
@@ -223,11 +230,9 @@ function openSettings() {
     toggleSourceOptions();
     renderStationOptions(config.SELECTED_STATION_ID);
 
-    // Mostrar modal
     modal.classList.remove('hidden');
     document.body.classList.add('overflow-hidden');
 
-    // Inicializar o actualizar mapa
     if (!map) {
         initMap(config.LATITUDE, config.LONGITUDE);
     } else {
@@ -243,23 +248,17 @@ function closeSettings() {
     closeStationForm();
 }
 
-/**
- * Guarda la configuración global
- */
 function saveSettings() {
     const selectedStationId = radioSourceStation.checked ? selectStation.value : null;
 
-    // Si seleccionó estación, validamos que haya elegido una
     if (radioSourceStation.checked && !selectedStationId) {
         alert("Por favor, selecciona una estación o cambia a 'Usar Coordenadas del Mapa'.");
         return;
     }
 
-    // Actualizamos coordenadas si hay estación seleccionada
     let lat = parseFloat(inputLat.value);
     let lng = parseFloat(inputLng.value);
 
-    // Si usamos estación, también podríamos actualizar LAT/LNG globales para que el mapa principal se centre ahí
     if (selectedStationId) {
         const station = currentStations.find(s => s.id === selectedStationId);
         if (station) {
@@ -299,19 +298,19 @@ btnClose.addEventListener('click', closeSettings);
 btnCancel.addEventListener('click', closeSettings);
 btnSave.addEventListener('click', saveSettings);
 
-// Sincronizar inputs manuales con marcador
 inputLat.addEventListener('change', () => { if (marker) updateMarker(inputLat.value, inputLng.value); });
 inputLng.addEventListener('change', () => { if (marker) updateMarker(inputLat.value, inputLng.value); });
 
-// Event Listeners de Estaciones
 radioSourceMap.addEventListener('change', toggleSourceOptions);
 radioSourceStation.addEventListener('change', toggleSourceOptions);
+
+// Toolbar Listeners
 btnAddStation.addEventListener('click', () => openStationForm());
+btnEditStation.addEventListener('click', editSelectedStation);
+btnDeleteStation.addEventListener('click', deleteSelectedStation);
+selectStation.addEventListener('change', updateToolbarState);
+
 btnCloseStationForm.addEventListener('click', closeStationForm);
 btnSaveStation.addEventListener('click', saveStationLocal);
 stationFormatCsv.addEventListener('change', toggleFormatOptions);
 stationFormatJson.addEventListener('change', toggleFormatOptions);
-
-// Al cambiar estación en el select, podríamos querer (opcionalmente) ofrecer editarla
-// De momento lo dejamos simple: solo añadir nuevas. 
-// Para mejorar: añadir botón de "Editar seleccionada" junto al select si hay valor.

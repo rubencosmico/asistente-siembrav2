@@ -257,7 +257,7 @@
             <!-- Data Sources Section -->
             <div class="border-b pb-6">
                 <h4 class="font-bold text-lg mb-3 text-gray-700">Fuentes de Datos Meteorológicos</h4>
-                
+
                 <!-- Source Selection -->
                 <div class="mb-4">
                     <label class="inline-flex items-center mr-6">
@@ -273,68 +273,124 @@
                 <!-- Stations List (hidden by default) -->
                 <div id="stations-container" class="hidden pl-4 border-l-2 border-green-200">
                     <div class="mb-3">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Seleccionar Estación</label>
-                        <select id="select-station" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border">
-                            <option value="">-- Seleccionar --</option>
-                        </select>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Seleccionar Estación Activa</label>
+                        <div class="flex space-x-2">
+                            <select id="select-station"
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm p-2 border">
+                                <option value="">-- Seleccionar --</option>
+                            </select>
+                        </div>
                     </div>
 
-                    <button id="btn-add-station" class="text-sm text-green-700 hover:text-green-900 font-semibold flex items-center mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-1"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        Añadir Nueva Estación
-                    </button>
+                    <!-- Toolbar for Stations -->
+                    <div class="flex items-center space-x-2 mb-4 text-xs">
+                        <button id="btn-add-station"
+                            class="flex items-center px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" class="mr-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Nueva
+                        </button>
+                        <button id="btn-edit-station"
+                            class="flex items-center px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" class="mr-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            Editar
+                        </button>
+                        <button id="btn-delete-station"
+                            class="flex items-center px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" class="mr-1" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path
+                                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                                </path>
+                            </svg>
+                            Borrar
+                        </button>
+                    </div>
 
                     <!-- Edit Station Form (hidden by default) -->
-                    <div id="station-form" class="hidden bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
-                        <button id="btn-close-station-form" class="absolute top-2 right-2 text-gray-400 hover:text-gray-600">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <div id="station-form"
+                        class="hidden bg-gray-50 p-4 rounded-lg border border-gray-200 relative shadow-sm">
+                        <button id="btn-close-station-form"
+                            class="absolute top-2 right-2 text-gray-400 hover:text-gray-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
                         </button>
-                        <h5 class="font-bold text-sm mb-3">Configurar Estación</h5>
-                        
+                        <h5 class="font-bold text-sm mb-3 text-green-800" id="form-title">Nueva Estación</h5>
+
                         <div class="grid grid-cols-1 gap-3">
                             <div>
                                 <label class="block text-xs font-medium text-gray-700">Nombre</label>
-                                <input type="text" id="station-name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border" placeholder="Ej: Barranc de Barbasena">
+                                <input type="text" id="station-name"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border"
+                                    placeholder="Ej: Barranc de Barbasena">
                             </div>
                             <div class="grid grid-cols-2 gap-2">
                                 <div>
                                     <label class="block text-xs font-medium text-gray-700">Latitud</label>
-                                    <input type="number" id="station-lat" step="0.0001" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                                    <input type="number" id="station-lat" step="0.0001"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-700">Longitud</label>
-                                    <input type="number" id="station-lng" step="0.0001" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                                    <input type="number" id="station-lng" step="0.0001"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
                                 </div>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-700">URL de Datos (Histórico)</label>
-                                <input type="text" id="station-url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border" placeholder="https://api.ejemplo.com/data?from={startDate}&to={endDate}">
-                                <p class="text-xs text-gray-500 mt-1">Usa <code>{startDate}</code> y <code>{endDate}</code> como marcadores de fecha.</p>
+                                <input type="text" id="station-url"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border"
+                                    placeholder="https://api.ejemplo.com/data?from={startDate}&to={endDate}">
+                                <p class="text-xs text-gray-500 mt-1">Usa <code>{startDate}</code> y
+                                    <code>{endDate}</code> como marcadores de fecha.</p>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-700 mb-1">Formato de Respuesta</label>
                                 <div class="flex items-center space-x-4">
                                     <label class="inline-flex items-center text-xs">
-                                        <input type="radio" name="station-format" value="csv" class="form-radio text-green-600" checked>
+                                        <input type="radio" name="station-format" value="csv"
+                                            class="form-radio text-green-600" checked>
                                         <span class="ml-1">CSV</span>
                                     </label>
                                     <label class="inline-flex items-center text-xs">
-                                        <input type="radio" name="station-format" value="json" class="form-radio text-green-600">
+                                        <input type="radio" name="station-format" value="json"
+                                            class="form-radio text-green-600">
                                         <span class="ml-1">JSON</span>
                                     </label>
                                 </div>
                             </div>
                             <div id="csv-options">
                                 <label class="block text-xs font-medium text-gray-700">Nombre de Columna Lluvia</label>
-                                <input type="text" id="station-csv-col" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border" placeholder="Ej: precipitations">
+                                <input type="text" id="station-csv-col"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border"
+                                    placeholder="Ej: precipitations">
                             </div>
                             <div id="json-options" class="hidden">
                                 <label class="block text-xs font-medium text-gray-700">Ruta JSON a Lluvia</label>
-                                <input type="text" id="station-json-path" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border" placeholder="Ej: daily.rain_sum">
+                                <input type="text" id="station-json-path"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border"
+                                    placeholder="Ej: daily.rain_sum">
                             </div>
-                            
-                            <div class="flex justify-end pt-2">
-                                <button id="btn-save-station" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">Guardar Estación</button>
+
+                            <div class="flex justify-end pt-3 border-t border-gray-200 mt-2">
+                                <button id="btn-save-station"
+                                    class="px-4 py-2 bg-green-700 text-white text-sm font-bold rounded shadow hover:bg-green-800 transition-colors">Guardar
+                                    Estación</button>
                             </div>
                         </div>
                     </div>
