@@ -58,15 +58,14 @@ const ConfigManager = {
             ...current,
             ...newConfig,
             THRESHOLDS: { ...current.THRESHOLDS, ...(newConfig.THRESHOLDS || {}) },
-            ...current.FORECAST_CRITERIA, ...(newConfig.FORECAST_CRITERIA || {})
-        },
+            FORECAST_CRITERIA: { ...current.FORECAST_CRITERIA, ...(newConfig.FORECAST_CRITERIA || {}) },
             STATIONS: newConfig.STATIONS || current.STATIONS,
-                SELECTED_STATION_ID: newConfig.SELECTED_STATION_ID !== undefined ? newConfig.SELECTED_STATION_ID : current.SELECTED_STATION_ID
-    };
-    localStorage.setItem('appConfig', JSON.stringify(updated));
-    // Disparamos un evento custom para que la app sepa que ha cambiado
-    window.dispatchEvent(new Event('configChanged'));
-}
+            SELECTED_STATION_ID: newConfig.SELECTED_STATION_ID !== undefined ? newConfig.SELECTED_STATION_ID : current.SELECTED_STATION_ID
+        };
+        localStorage.setItem('appConfig', JSON.stringify(updated));
+        // Disparamos un evento custom para que la app sepa que ha cambiado
+        window.dispatchEvent(new Event('configChanged'));
+    }
 };
 
 export default ConfigManager;
