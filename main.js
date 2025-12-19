@@ -85,12 +85,25 @@ async function fetchStationHistory(station, pastDays = 7) {
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - pastDays);
 
-    let url = station.url
+    let targetUrl = station.url
         .replace('{startDate}', formatDate(startDate))
         .replace('{endDate}', formatDate(endDate));
 
+    // Usar proxy local para evitar CORS
+    // codificamos la URL destino
+    const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+
     try {
-        const response = await fetch(url);
+        // Intentar primero con proxy
+        let response = await fetch(proxyUrl);
+
+        // Si estamos en localhost y no corre la api function (ej: live server sin vercel dev),
+        // o si falla el proxy, intentar directo (aunque probablemente falle por CORS si no es localhost con plugin)
+        if (!response.ok) {
+            console.warn("Proxy falló o no existe, intentando directo...", response.status);
+            response = await fetch(targetUrl);
+        }
+
         if (!response.ok) throw new Error(`Station HTTP: ${response.status}`);
 
         const text = await response.text();
@@ -98,27 +111,65 @@ async function fetchStationHistory(station, pastDays = 7) {
 
         if (station.format === 'csv') {
             const rows = text.trim().split('\n');
-            // Asumimos primera fila headers si no está vacío
-            // Simple CSV parser: busca indice de columna
-            const headers = rows[0].split(/[;,]/).map(h => h.trim().replace(/['"]/g, ''));
-            const colName = station.mapping || 'precipitations'; // fallback
-            const colIndex = headers.indexOf(colName);
+            const headers = rows[0].split(/[;,]/).map(h => h.trim().toLowerCase().replace(/['"]/g, ''));
 
-            if (colIndex === -1) {
-                console.warn(`Columna ${colName} no encontrada en CSV de estación.`);
-                // Intentar heurística: buscar algo con "rain", "precip", "mm"
-                // O simplemente sumar la ultima columna? No, muy arriesgado.
-                return 0; // Fallback safe
+            // Determinar columnas
+            const dateColName = 'dateutc'; // Estándar para meteoelx
+            const rainColName = station.mapping || 'rainratein';
+
+            const dateIndex = headers.indexOf(dateColName);
+            const rainIndex = headers.indexOf(rainColName);
+
+            if (dateIndex === -1 || rainIndex === -1) {
+                console.warn(`Columnas no encontradas. Buscaba: ${dateColName}, ${rainColName}. Encontradas: ${headers}`);
+                return 0; // Fallback
             }
 
-            // Sumar filas de datos
+            // 1. Parsing
+            const records = [];
             for (let i = 1; i < rows.length; i++) {
-                const cols = rows[i].split(/[;,]/);
-                if (cols.length > colIndex) {
-                    const val = parseFloat(cols[colIndex]);
-                    if (!isNaN(val)) totalRain += val;
+                const cols = rows[i].split(/[;,]/).map(c => c.replace(/^"|"$/g, '').trim());
+                if (cols.length <= rainIndex) continue;
+
+                const dateStr = cols[dateIndex];
+                const val = parseFloat(cols[rainIndex]);
+
+                // Asumimos UTC o ISO string
+                const date = new Date(dateStr + (dateStr.endsWith('Z') ? '' : 'Z'));
+
+                if (!isNaN(date.getTime()) && !isNaN(val)) {
+                    records.push({ date, rainRate: val });
                 }
             }
+
+            // 2. Deduplicación (Keep First)
+            const uniqueMap = new Map();
+            records.forEach(r => {
+                const key = r.date.toISOString();
+                if (!uniqueMap.has(key)) uniqueMap.set(key, r);
+            });
+            const cleaned = Array.from(uniqueMap.values());
+
+            // 3. Ordenación Cronológica
+            cleaned.sort((a, b) => a.date - b.date);
+
+            // 4. Integración: Lluvia = Intensidad * Delta_t
+            for (let i = 1; i < cleaned.length; i++) {
+                const current = cleaned[i];
+                const prev = cleaned[i - 1];
+
+                // Delta T en horas
+                const diffMs = current.date - prev.date;
+                const deltaHours = diffMs / (1000 * 60 * 60);
+
+                // Evitar integración sobre huecos enormes (ej: > 24h)
+                if (deltaHours > 24) continue;
+                if (deltaHours < 0) continue; // Por si acaso
+
+                // Cálculo
+                totalRain += current.rainRate * deltaHours;
+            }
+
         } else {
             // JSON Parsing
             const json = JSON.parse(text);

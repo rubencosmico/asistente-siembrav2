@@ -8,6 +8,9 @@ const btnClose = document.getElementById('btn-close-settings');
 const btnCancel = document.getElementById('btn-cancel-settings');
 const btnSave = document.getElementById('btn-save-settings');
 
+// Container de botones globales para ocultarlos
+const globalButtonsContainer = btnCancel.parentElement;
+
 // Elementos de Configuración General
 const inputLat = document.getElementById('input-lat');
 const inputLng = document.getElementById('input-lng');
@@ -64,6 +67,8 @@ function initMap(lat, lng) {
             const { lat, lng } = marker.getLatLng();
             updateInputs(lat, lng);
         });
+        // Render station markers after map is ready
+        renderStationMarkers();
     }, 100);
 }
 
@@ -134,8 +139,10 @@ function editSelectedStation() {
 
 function openStationForm(station = null) {
     stationForm.classList.remove('hidden');
-    // Deshabilitar la barra de herramientas mientras editamos para evitar conflictos
     btnAddStation.classList.add('hidden');
+
+    // Ocultar botones globales para evitar confusión
+    globalButtonsContainer.classList.add('hidden');
 
     if (station) {
         formTitle.textContent = "Editar Estación";
@@ -164,11 +171,16 @@ function openStationForm(station = null) {
         stationJsonPath.value = '';
     }
     toggleFormatOptions();
+
+    // Scroll to form to ensure user sees it
+    stationForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function closeStationForm() {
     stationForm.classList.add('hidden');
-    btnAddStation.classList.remove('hidden'); // Restaurar botón
+    btnAddStation.classList.remove('hidden');
+    // Mostrar botones globales de nuevo
+    globalButtonsContainer.classList.remove('hidden');
     editingStationId = null;
 }
 
@@ -207,6 +219,10 @@ function saveStationLocal() {
     }
 
     renderStationOptions(newStation.id);
+    // Seleccionar automáticamente la estación recién guardada
+    selectStation.value = newStation.id;
+    updateToolbarState(); // Actualizar botones después de seleccionar
+
     closeStationForm();
 }
 
@@ -239,6 +255,51 @@ function openSettings() {
         map.invalidateSize();
         map.setView([config.LATITUDE, config.LONGITUDE], 9);
         updateMarker(config.LATITUDE, config.LONGITUDE);
+    }
+
+    // Render station markers on the map
+    renderStationMarkers();
+}
+
+let stationMarkersLayer = null;
+
+function renderStationMarkers() {
+    if (!map) return;
+
+    if (stationMarkersLayer) {
+        map.removeLayer(stationMarkersLayer);
+    }
+
+    const markers = [];
+    currentStations.forEach(st => {
+        // Red/Green/Blue markers? For now, standard markers with popup
+        // Or specific color to differentiate from the selection marker
+        // Let's use a custom small circle marker
+        const marker = L.circleMarker([st.lat, st.lng], {
+            color: 'white',
+            fillColor: '#8b5cf6', // Violet for stations
+            fillOpacity: 0.9,
+            weight: 2,
+            radius: 8
+        });
+
+        marker.bindPopup(`<b>${st.name}</b><br>Haz clic para usar esta estación`);
+
+        marker.on('click', () => {
+            // Select this station
+            selectStation.value = st.id;
+            radioSourceStation.checked = true;
+            toggleSourceOptions();
+            updateToolbarState();
+            // Also center map?
+            // map.setView([st.lat, st.lng], 10);
+        });
+
+        markers.push(marker);
+    });
+
+    if (markers.length > 0) {
+        stationMarkersLayer = L.layerGroup(markers).addTo(map);
     }
 }
 
