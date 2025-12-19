@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tailwindcss -i ./src/input.css -o ./style.css --watch",
-    "build": "mkdir -p dist && cp index.html main.js config.js settings.js dist/ && tailwindcss -i ./src/input.css -o ./dist/style.css --minify",
+    "dev": "tailwindcss -c tailwind.config.cjs -i ./src/input.css -o ./style.css --watch",
+    "build": "tailwindcss -c tailwind.config.cjs -i ./src/input.css -o ./style.css --minify",
     "start": "node local-server.js"
   },
   "devDependencies": {
